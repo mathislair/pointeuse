@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: pointeuse:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:80"
+    environment:
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      # APP_KEY: optional – generated automatically and stored in the volume
+    volumes:
+      - pointeuse-data:/data
+
+volumes:
+  pointeuse-data:
