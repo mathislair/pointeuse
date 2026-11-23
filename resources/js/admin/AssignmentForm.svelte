@@ -45,6 +45,13 @@
 
     const clockingChanged = $derived(editing && (form.clock_in !== hm(assignment.clock_in_at) || form.clock_out !== hm(assignment.clock_out_at)));
 
+    /** Planned but never clocked: offer to copy the planned range into arrival/departure. */
+    const canFillFromPlanned = $derived(editing && !form.absent && !!form.start && !!form.end && (form.clock_in !== form.start || form.clock_out !== form.end));
+    function fillFromPlanned() {
+        form.clock_in = form.start;
+        form.clock_out = form.end;
+    }
+
     /**
      * "HH:MM" on the service day → "YYYY-MM-DD HH:MM" (Paris time, parsed as such by the API).
      * Before day_start_hour it is the next morning; a departure before the arrival is the next day too.
@@ -175,6 +182,14 @@
         </div>
 
         {#if editing}
+            <div class="-mb-2 flex items-center justify-between gap-2 sm:col-span-2">
+                <span class="text-sm font-medium text-gray-700">Pointage</span>
+                {#if canFillFromPlanned}
+                    <button type="button" class="text-xs text-emerald-700 hover:underline" onclick={fillFromPlanned}>
+                        {!form.clock_in && !form.clock_out ? 'Pré-remplir avec les heures planifiées' : 'Reprendre les heures planifiées'} ({form.start} – {form.end})
+                    </button>
+                {/if}
+            </div>
             <div>
                 <label for="in">Arrivée</label>
                 <input id="in" type="time" class="mt-1 block w-full" bind:value={form.clock_in} disabled={form.absent} />
