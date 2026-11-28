@@ -2,6 +2,7 @@
     /** A worker who is not on today's planning shows up: pick them in the shared list and clock in. */
     import { get, post } from '../lib/api.js';
     import { appConfig } from '../lib/config.svelte.js';
+    import { matchesWorker, fmtTime } from '../lib/format.js';
     import Modal from '../components/Modal.svelte';
 
     let { restaurant, onclose, oncreated } = $props();
@@ -11,29 +12,13 @@
     let workerId = $state(null);
     let busy = $state(false);
     let error = $state('');
-    const shift = $derived(appConfig.shift(currentShift()));
+    const shift = $derived(appConfig.shift(appConfig.shiftAt(fmtTime(new Date()))));
 
     get('/workers', { active_only: 1 }).then((w) => (workers = w));
 
     const filtered = $derived.by(() => {
-        const q = search.trim().toLowerCase();
-        return workers.filter((w) => !q || `${w.first_name} ${w.last_name}`.toLowerCase().includes(q)).slice(0, 30);
+        return workers.filter((w) => matchesWorker(w, search)).slice(0, 30);
     });
-
-    /** The shift whose window contains now, else the next one to start. */
-    function currentShift() {
-        const now = new Date();
-        const minutes = now.getHours() * 60 + now.getMinutes();
-        const toMin = (hm) => hm.split(':').reduce((h, m) => Number(h) * 60 + Number(m));
-        for (const [key, s] of Object.entries(appConfig.shifts)) {
-            const start = toMin(s.start);
-            let end = toMin(s.end);
-            const m = end <= start && minutes < start ? minutes + 1440 : minutes;
-            if (end <= start) end += 1440;
-            if (m >= start - 60 && m < end) return key;
-        }
-        return appConfig.shiftKeys[0];
-    }
 
     async function submit() {
         if (!workerId) return (error = 'Choisis un intérimaire.');

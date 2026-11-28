@@ -4,10 +4,14 @@
      */
     let { value = $bindable(null), height = 180 } = $props();
 
+    /** Cumulative stroke length (CSS px) below which a touch is a tap, not a signature. */
+    const MIN_INK = 60;
+
     let canvas = $state();
     let drawing = false;
     let last = null;
     let hasInk = $state(false);
+    let ink = 0;
 
     function setup() {
         const ratio = window.devicePixelRatio || 1;
@@ -59,19 +63,22 @@
         ctx.moveTo(last.x, last.y);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
+        ink += Math.hypot(p.x - last.x, p.y - last.y);
         last = p;
     }
 
     function up(e) {
         if (!drawing) return;
         drawing = false;
-        value = canvas.toDataURL('image/png');
+        // A tap or a tiny scribble is not a signature: keep the button disabled.
+        value = ink >= MIN_INK ? canvas.toDataURL('image/png') : null;
     }
 
     export function clear() {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hasInk = false;
+        ink = 0;
         value = null;
     }
 </script>

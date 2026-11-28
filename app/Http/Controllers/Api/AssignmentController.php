@@ -15,6 +15,8 @@ class AssignmentController extends Controller
     /** List assignments for a date range (admin planning & clockings tables). */
     public function index(Request $request): JsonResponse
     {
+        Assignment::closeForgotten();
+
         $data = $request->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
@@ -87,17 +89,26 @@ class AssignmentController extends Controller
         $clockingChanged = false;
         foreach (['clock_in_at', 'clock_out_at'] as $field) {
             if ($request->has($field)) {
-                // The browser sends UTC; Eloquent stores the wall-clock time as is, so convert to Paris first.
-                $new = $data[$field] ? CarbonImmutable::parse($data[$field])->setTimezone(config('app.timezone')) : null;
+                // Wall-clock time (Paris) sent by the form, compared to the minute: the
+                // stored clocking has seconds, the form only shows HH:MM.
+                $new = $data[$field] ? CarbonImmutable::parse($data[$field])->setTimezone(config('app.timezone'))->startOfMinute() : null;
                 $old = $assignment->{$field};
-                if (($new?->toIso8601String()) !== ($old?->toIso8601String())) {
+                if (($new?->format('Y-m-d H:i')) !== ($old?->format('Y-m-d H:i'))) {
                     $assignment->{$field} = $new;
                     $clockingChanged = true;
                 }
             }
         }
+        if ($assignment->clock_out_at && ! $assignment->clock_in_at) {
+            throw ValidationException::withMessages(['clock_in_at' => "Renseignez l'arrivée avant le départ."]);
+        }
+        if ($assignment->clock_out_at && $assignment->clock_out_at->lessThanOrEqualTo($assignment->clock_in_at)) {
+            throw ValidationException::withMessages(['clock_out_at' => "Le départ doit être après l'arrivée."]);
+        }
 
-        if (array_key_exists('absent', $data)) {
+        $absentChanged = false;
+        if (array_key_exists('absent', $data) && (bool) $data['absent'] !== $assignment->absent) {
+            $absentChanged = true;
             $assignment->absent = $data['absent'];
             if ($data['absent']) {
                 $assignment->clock_in_at = null;
@@ -115,9 +126,9 @@ class AssignmentController extends Controller
         if (isset($data['date']) || isset($data['start']) || array_key_exists('end', $data) || isset($data['worker_id'])) {
             [$curStart, $curEnd] = $assignment->plannedTimes();
             $assignment->applyTimes($data['start'] ?? $curStart, array_key_exists('end', $data) ? $data['end'] : $curEnd);
-            if (! $assignment->absent) {
-                $this->assertNoOverlap($assignment);
-            }
+        }
+        if (! $assignment->absent && ($absentChanged || $assignment->isDirty(['planned_start', 'planned_end', 'worker_id', 'date']))) {
+            $this->assertNoOverlap($assignment);
         }
 
         // A corrected clocking invalidates the worker's signature: it must be signed again.
@@ -126,7 +137,10 @@ class AssignmentController extends Controller
             $assignment->signed_at = null;
         }
 
-        $assignment->edited_at = now();
+        // "Corrected" only when the clocking or the planning really changed, not for a note.
+        if ($clockingChanged || $absentChanged || $assignment->isDirty(['planned_start', 'planned_end', 'restaurant_id', 'worker_id', 'date'])) {
+            $assignment->edited_at = now();
+        }
 
         $assignment->save();
 

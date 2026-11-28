@@ -15,12 +15,20 @@
 
     get('/restaurants').then((r) => (restaurants = r));
 
+    let loadSeq = 0;
+    let error = $state('');
     async function load() {
+        const seq = ++loadSeq;
         loading = true;
         try {
-            recap = await get('/recap', { month, restaurant_id: restaurantId });
+            const fresh = await get('/recap', { month, restaurant_id: restaurantId });
+            if (seq !== loadSeq) return;
+            recap = fresh;
+            error = '';
+        } catch (e) {
+            if (seq === loadSeq) error = e.message;
         } finally {
-            loading = false;
+            if (seq === loadSeq) loading = false;
         }
     }
     $effect(() => {
@@ -65,7 +73,13 @@
         <a class="btn btn-secondary" href={exportUrl} download>Exporter en CSV</a>
     {/snippet}
 
+    {#if error}
+        <p class="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+    {/if}
     {#if recap}
+        {#if recap.totals.incomplete}
+            <p class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{recap.totals.incomplete} pointage{recap.totals.incomplete > 1 ? 's' : ''} encore en cours (départ non pointé) : {recap.totals.incomplete > 1 ? 'leurs heures ne sont' : 'ses heures ne sont'} pas comptées dans le total.</p>
+        {/if}
         <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div class="card p-4"><p class="text-xs font-medium tracking-wide text-gray-500 uppercase">Shifts travaillés</p><p class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{recap.totals.shifts}</p></div>
             <div class="card p-4"><p class="text-xs font-medium tracking-wide text-gray-500 uppercase">Heures</p><p class="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">{fmtDuration(recap.totals.minutes)}</p></div>

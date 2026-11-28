@@ -82,6 +82,44 @@ class Assignment extends Model
         return $end->greaterThan($start) ? $end : $start->addHour();
     }
 
+    /** Hours after the end of the slot before a forgotten departure is closed automatically. */
+    public const FORGOTTEN_GRACE_HOURS = 4;
+
+    /**
+     * Close the clockings whose departure was never punched: once the slot has
+     * been over for FORGOTTEN_GRACE_HOURS, the departure is set to the end of
+     * the slot with an admin note, so the hours show up (unsigned) in the recap
+     * instead of staying "present" forever. The admin can still correct them.
+     *
+     * @return int number of clockings closed
+     */
+    public static function closeForgotten(?CarbonImmutable $now = null): int
+    {
+        $now = $now ?? CarbonImmutable::now();
+        $closed = 0;
+        $open = static::whereNotNull('clock_in_at')->whereNull('clock_out_at')
+            ->where('clock_in_at', '<', $now->subHours(self::FORGOTTEN_GRACE_HOURS))
+            ->get();
+        foreach ($open as $a) {
+            $end = $a->effectiveEnd();
+            if ($end->addHours(self::FORGOTTEN_GRACE_HOURS)->greaterThan($now)) {
+                continue;
+            }
+            if ($end->lessThanOrEqualTo($a->clock_in_at)) {
+                $end = CarbonImmutable::instance($a->clock_in_at)->addHour();
+            }
+            $note = sprintf('Départ non pointé : clôturé automatiquement à %s (fin du créneau), à vérifier.', $end->format('H:i'));
+            $a->forceFill([
+                'clock_out_at' => $end,
+                'admin_note' => trim(($a->admin_note ? $a->admin_note.' — ' : '').$note),
+                'edited_at' => $now,
+            ])->save();
+            $closed++;
+        }
+
+        return $closed;
+    }
+
     /** Another planned range for the same worker that overlaps this one (any restaurant). */
     public function overlapping(): ?Assignment
     {

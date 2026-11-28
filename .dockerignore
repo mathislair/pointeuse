@@ -17,3 +17,4 @@ tests
 .idea
 .vscode
 bootstrap/cache/*.php
+.claude

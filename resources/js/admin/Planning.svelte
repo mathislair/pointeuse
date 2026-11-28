@@ -14,18 +14,33 @@
     let modal = $state(null); // { assignment } | { defaults }
 
     const days = $derived(Array.from({ length: 7 }, (_, i) => ymd(addDays(weekStart, i))));
-    const today = ymd(new Date());
-    const now = new Date();
+    let now = $state(new Date());
+    const today = $derived(ymd(now));
+    $effect(() => {
+        const tick = setInterval(() => (now = new Date()), 60_000);
+        return () => clearInterval(tick);
+    });
 
     Promise.all([get('/restaurants'), get('/workers')]).then(([r, w]) => {
         restaurants = r;
         workers = w;
     });
 
+    let loadSeq = 0;
+    let error = $state('');
     async function load() {
+        const seq = ++loadSeq;
         loading = true;
-        assignments = await get('/assignments', { from: days[0], to: days[6], restaurant_id: restaurantId });
-        loading = false;
+        try {
+            const rows = await get('/assignments', { from: days[0], to: days[6], restaurant_id: restaurantId });
+            if (seq !== loadSeq) return;
+            assignments = rows;
+            error = '';
+        } catch (e) {
+            if (seq === loadSeq) error = e.message;
+        } finally {
+            if (seq === loadSeq) loading = false;
+        }
     }
     $effect(() => {
         days;
@@ -35,7 +50,7 @@
 
     const visibleRestaurants = $derived(restaurantId ? restaurants.filter((r) => r.id === Number(restaurantId)) : restaurants);
     const cell = (rid, date, shift) => assignments.filter((a) => a.restaurant_id === rid && a.date === date && a.shift === shift);
-    const dot = { planned: 'bg-gray-300', late: 'bg-amber-400', present: 'bg-emerald-500', to_sign: 'bg-orange-400', validated: 'bg-blue-500', absent: 'bg-red-500' };
+    const dot = { planned: 'bg-gray-300', late: 'bg-amber-400', missed: 'bg-gray-500', present: 'bg-emerald-500', to_sign: 'bg-orange-400', validated: 'bg-blue-500', absent: 'bg-red-500' };
 
     function saved() {
         modal = null;
@@ -44,6 +59,9 @@
 </script>
 
 <Page>
+    {#if error}
+        <p class="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+    {/if}
     {#snippet heading()}
         <div class="flex items-center gap-3">
             <button class="btn btn-secondary px-3 py-1.5" onclick={() => (weekStart = addDays(weekStart, -7))} title="Semaine précédente">‹</button>

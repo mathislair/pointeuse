@@ -16,20 +16,32 @@
     let rows = $state([]);
     let loading = $state(false);
     let editing = $state(null);
-    const now = new Date();
+    let now = $state(new Date());
+    let error = $state('');
+    $effect(() => {
+        const tick = setInterval(() => (now = new Date()), 60_000);
+        return () => clearInterval(tick);
+    });
 
     Promise.all([get('/restaurants'), get('/workers')]).then(([r, w]) => {
         restaurants = r;
         workers = w;
     });
 
+    let loadSeq = 0;
     async function load() {
         if (!from || !to || from > to) return;
+        const seq = ++loadSeq;
         loading = true;
         try {
-            rows = await get('/assignments', { from, to, restaurant_id: restaurantId, worker_id: workerId });
+            const fresh = await get('/assignments', { from, to, restaurant_id: restaurantId, worker_id: workerId });
+            if (seq !== loadSeq) return;
+            rows = fresh;
+            error = '';
+        } catch (e) {
+            if (seq === loadSeq) error = e.message;
         } finally {
-            loading = false;
+            if (seq === loadSeq) loading = false;
         }
     }
     $effect(() => {
@@ -55,6 +67,9 @@
         <button class="btn btn-secondary" onclick={() => quick(7)}>7 jours</button>
         <button class="btn btn-secondary" onclick={() => quick(30)}>30 jours</button>
     {/snippet}
+    {#if error}
+        <p class="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>
+    {/if}
 
     <div class="card mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div><label for="from">Du</label><input id="from" type="date" class="mt-1 block w-full" bind:value={from} /></div>

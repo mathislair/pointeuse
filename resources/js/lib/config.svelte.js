@@ -56,6 +56,19 @@ export const appConfig = {
         }
         return next ?? this.shiftKeys.at(-1) ?? null;
     },
+    /**
+     * Origin the phones must reach: APP_URL when it is a real address, else the
+     * current one. `warning` is set when that is a localhost / private address.
+     */
+    get publicOrigin() {
+        const local = (u) => /^https?:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\]|0\.0\.0\.0)/i.test(u) || !/^https?:\/\//i.test(u);
+        const appUrl = config?.app_url ?? '';
+        const origin = appUrl && !local(appUrl) ? appUrl : window.location.origin;
+        return {
+            origin,
+            warning: local(origin) ? `Cette adresse (${origin}) n'est joignable que depuis cet ordinateur ou ce réseau : réglez APP_URL sur l'adresse publique avant d'imprimer le QR code.` : '',
+        };
+    },
     load() {
         promise ??= get('/config').then((c) => (config = c));
         return promise;

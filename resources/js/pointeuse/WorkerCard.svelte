@@ -12,6 +12,8 @@
             case 'planned':
             case 'late':
                 return { label: "Pointer l'arrivée", cls: 'btn-primary' };
+            case 'missed':
+                return { label: 'Créneau passé', cls: 'btn-secondary' };
             case 'present':
                 return { label: 'Pointer le départ', cls: 'btn-dark' };
             case 'to_sign':

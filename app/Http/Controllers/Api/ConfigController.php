@@ -15,6 +15,7 @@ class ConfigController extends Controller
 
         return response()->json([
             'app_name' => config('app.name'),
+            'app_url' => rtrim((string) config('app.url'), '/'),
             'shifts' => Shifts::all(),
             'day_start_hour' => (int) config('pointeuse.day_start_hour'),
             'now' => $now->toIso8601String(),

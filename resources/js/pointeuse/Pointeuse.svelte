@@ -23,12 +23,21 @@
         if (router.query.get('restaurant')) router.navigate('/', { replace: true });
     });
 
+    // Polling and manual refreshes overlap: only the latest response may update the screen.
+    let loadSeq = 0;
+
     async function load() {
         if (!slug) return;
+        const seq = ++loadSeq;
         try {
-            day = await get(`/pointeuse/${slug}/day`);
+            const fresh = await get(`/pointeuse/${slug}/day`);
+            if (seq !== loadSeq) return;
+            day = fresh;
             error = '';
+            // Keep the open dialog in sync (the worker may have clocked from their phone meanwhile).
+            if (selected) selected = [...day.hanging, ...day.assignments].find((a) => a.id === selected.id) ?? selected;
         } catch (e) {
+            if (seq !== loadSeq) return;
             if (e.status === 404) {
                 localStorage.removeItem(STORAGE_KEY);
                 slug = '';
@@ -149,7 +158,7 @@
     </div>
 
     {#if selected}
-        <ClockDialog assignment={selected} restaurant={day.restaurant} onclose={() => (selected = null)} onchanged={refreshSelected} />
+        <ClockDialog assignment={selected} restaurant={day.restaurant} {now} onclose={() => (selected = null)} onchanged={refreshSelected} />
     {/if}
     {#if walkIn}
         <WalkInDialog restaurant={day.restaurant} onclose={() => (walkIn = false)} oncreated={(a) => { walkIn = false; load(); selected = a; }} />

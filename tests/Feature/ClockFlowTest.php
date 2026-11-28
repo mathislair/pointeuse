@@ -78,19 +78,19 @@ class ClockFlowTest extends TestCase
             ->assertJsonPath('date', '2026-11-15')
             ->assertJsonPath('assignments.0.status', 'planned');
 
-        $this->postJson("/api/assignments/{$a->id}/clock-in")->assertOk()->assertJsonPath('status', 'present');
-        $this->postJson("/api/assignments/{$a->id}/clock-in")->assertUnprocessable();
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/clock-in")->assertOk()->assertJsonPath('status', 'present');
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/clock-in")->assertUnprocessable();
 
         // cannot sign before clocking out
-        $this->postJson("/api/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE])->assertUnprocessable();
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE])->assertUnprocessable();
 
         CarbonImmutable::setTestNow('2026-11-15 23:40:00');
-        $this->postJson("/api/assignments/{$a->id}/clock-out")
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/clock-out")
             ->assertOk()
             ->assertJsonPath('status', 'to_sign')
             ->assertJsonPath('worked_minutes', 375);
 
-        $this->postJson("/api/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE])
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE])
             ->assertOk()
             ->assertJsonPath('status', 'validated')
             ->assertJsonPath('has_signature', true);
@@ -110,10 +110,10 @@ class ClockFlowTest extends TestCase
     {
         CarbonImmutable::setTestNow('2026-11-15 09:00:00');
         $a = $this->plan('09:00', '17:30', '2026-11-15');
-        $this->postJson("/api/assignments/{$a->id}/clock-in");
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/clock-in");
         CarbonImmutable::setTestNow('2026-11-15 17:30:00');
-        $this->postJson("/api/assignments/{$a->id}/clock-out");
-        $this->postJson("/api/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE]);
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/clock-out");
+        $this->postJson("/api/pointeuse/villejuif/assignments/{$a->id}/sign", ['signature' => self::SIGNATURE]);
 
         $this->putJson("/api/assignments/{$a->id}", ['clock_out_at' => '2026-11-15T18:00:00+01:00'])
             ->assertOk()

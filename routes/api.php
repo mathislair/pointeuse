@@ -17,9 +17,9 @@ Route::apiResource('assignments', AssignmentController::class);
 // Pointeuse (time clock) – per restaurant
 Route::get('pointeuse/{restaurant:slug}/day', [ClockController::class, 'day']);
 Route::post('pointeuse/{restaurant:slug}/walk-in', [ClockController::class, 'walkIn']);
-Route::post('assignments/{assignment}/clock-in', [ClockController::class, 'clockIn']);
-Route::post('assignments/{assignment}/clock-out', [ClockController::class, 'clockOut']);
-Route::post('assignments/{assignment}/sign', [ClockController::class, 'sign']);
+Route::post('pointeuse/{restaurant:slug}/assignments/{assignment}/clock-in', [ClockController::class, 'clockIn']);
+Route::post('pointeuse/{restaurant:slug}/assignments/{assignment}/clock-out', [ClockController::class, 'clockOut']);
+Route::post('pointeuse/{restaurant:slug}/assignments/{assignment}/sign', [ClockController::class, 'sign']);
 Route::get('assignments/{assignment}/signature', [ClockController::class, 'signature']);
 
 // Admin recap

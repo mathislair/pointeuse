@@ -56,6 +56,7 @@ class RecapController extends Controller
                 'minutes' => $byWorker->sum('minutes'),
                 'unsigned' => $byWorker->sum('unsigned'),
                 'absent' => $byWorker->sum('absent'),
+                'incomplete' => $byWorker->sum('incomplete'),
             ],
             'workers' => $byWorker,
             'restaurants' => $byRestaurant,
@@ -109,6 +110,8 @@ class RecapController extends Controller
             $from = $month->startOfMonth();
             $to = $month->endOfMonth()->startOfDay();
         }
+
+        Assignment::closeForgotten();
 
         $query = Assignment::with(['worker', 'restaurant'])->between($from->toDateString(), $to->toDateString());
         if (! empty($data['restaurant_id'])) {

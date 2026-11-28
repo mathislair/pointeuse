@@ -6,7 +6,7 @@
     import SignaturePad from '../components/SignaturePad.svelte';
     import StatusBadge from '../components/StatusBadge.svelte';
 
-    let { assignment, restaurant, onclose, onchanged } = $props();
+    let { assignment, restaurant, now = new Date(), onclose, onchanged } = $props();
 
     // svelte-ignore state_referenced_locally
     let a = $state(assignment);
@@ -21,7 +21,8 @@
     let savedSignature = $state(null);
 
     const shift = $derived(appConfig.shift(a.shift));
-    const status = $derived(displayStatus(a));
+    const status = $derived(displayStatus(a, now));
+    const canClockIn = $derived(status === 'planned' || status === 'late' || status === 'missed');
     const title = $derived(`${a.worker.first_name} ${a.worker.last_name}`);
 
     $effect(() => {
@@ -46,11 +47,12 @@
         }
     }
 
-    const clockIn = () => run(() => post(`/assignments/${a.id}/clock-in`));
-    const clockOut = () => run(() => post(`/assignments/${a.id}/clock-out`));
+    const base = $derived(`/pointeuse/${restaurant.slug}/assignments/${a.id}`);
+    const clockIn = () => run(() => post(`${base}/clock-in`));
+    const clockOut = () => run(() => post(`${base}/clock-out`));
     async function sign() {
         if (!signature) return (error = 'Merci de signer avant de valider.');
-        if (await run(() => post(`/assignments/${a.id}/sign`, { signature }))) {
+        if (await run(() => post(`${base}/sign`, { signature }))) {
             done = true;
             setTimeout(() => onclose?.(), 1800);
         }
@@ -61,12 +63,12 @@
     {#snippet footer()}
         {#if done}
             <span class="text-sm text-emerald-700">Merci, c'est validé !</span>
-        {:else if status === 'planned' || status === 'late'}
+        {:else if canClockIn}
             <button class="btn btn-secondary" onclick={onclose}>Annuler</button>
-            <button class="btn btn-primary px-6 py-3 text-base" onclick={clockIn} disabled={busy}>Pointer l'arrivée · {fmtTime(new Date())}</button>
+            <button class="btn btn-primary px-6 py-3 text-base" onclick={clockIn} disabled={busy}>Pointer l'arrivée · {fmtTime(now)}</button>
         {:else if status === 'present'}
             <button class="btn btn-secondary" onclick={onclose}>Annuler</button>
-            <button class="btn btn-dark px-6 py-3 text-base" onclick={clockOut} disabled={busy}>Pointer le départ · {fmtTime(new Date())}</button>
+            <button class="btn btn-dark px-6 py-3 text-base" onclick={clockOut} disabled={busy}>Pointer le départ · {fmtTime(now)}</button>
         {:else if status === 'to_sign'}
             <button class="btn btn-secondary" onclick={onclose}>Plus tard</button>
             <button class="btn px-6 py-3 text-base {signature ? 'btn-primary' : 'bg-gray-300 text-white'}" onclick={sign} disabled={busy || !signature}>Je valide et je signe</button>
@@ -104,10 +106,12 @@
             </div>
         </div>
 
-        {#if status === 'planned' || status === 'late'}
+        {#if canClockIn}
             <p class="text-gray-700">Bonjour <strong>{a.worker.first_name}</strong> ! Confirme ton arrivée pour le shift <strong>{shift.label}</strong>.</p>
             {#if status === 'late'}
                 <p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">Le shift a commencé à {fmtTime(a.planned_start)} : l'heure réelle d'arrivée sera enregistrée.</p>
+            {:else if status === 'missed'}
+                <p class="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">Le créneau prévu ({fmtPlanned(a)}) est terminé sans pointage. Si l'intérimaire arrive quand même, utilisez plutôt « Non planifié ».</p>
             {/if}
         {:else if status === 'present'}
             <p class="text-gray-700">Tu es arrivé(e) à <strong>{fmtTime(a.clock_in_at)}</strong>. Tu pourras valider tes heures et signer juste après avoir pointé ton départ.</p>

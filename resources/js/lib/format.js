@@ -79,17 +79,46 @@ export function startOfWeek(d) {
     return x;
 }
 
+/** Lower-case without accents, for searches: "Léa" matches "lea". */
+export const fold = (s) =>
+    String(s ?? '')
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .toLowerCase();
+
+/** Does the worker's name contain the query (accent- and case-insensitive)? */
+export function matchesWorker(w, query) {
+    const q = fold(query).trim();
+    return !q || fold(`${w.first_name} ${w.last_name}`).includes(q) || fold(`${w.last_name} ${w.first_name}`).includes(q);
+}
+
 export const STATUS = {
     planned: { label: 'Prévu', cls: 'bg-gray-100 text-gray-700' },
     late: { label: 'En retard', cls: 'bg-amber-100 text-amber-800' },
+    missed: { label: 'Non pointé', cls: 'bg-gray-200 text-gray-600' },
     present: { label: 'Présent', cls: 'bg-emerald-100 text-emerald-800' },
     to_sign: { label: 'À signer', cls: 'bg-orange-100 text-orange-800' },
     validated: { label: 'Validé', cls: 'bg-blue-100 text-blue-800' },
     absent: { label: 'Absent', cls: 'bg-red-100 text-red-800' },
 };
 
-/** Derived status with "late" when an unclocked worker is past their start time. */
+/**
+ * Derived status: "late" when an unclocked worker is past their start time,
+ * "missed" once their slot is over without any clocking.
+ */
 export function displayStatus(a, now = new Date()) {
-    if (a.status === 'planned' && now - new Date(a.planned_start) > 10 * 60 * 1000) return 'late';
+    if (a.status === 'planned') {
+        if (a.planned_end && now > new Date(a.planned_end)) return 'missed';
+        if (now - new Date(a.planned_start) > 10 * 60 * 1000) return 'late';
+    }
     return a.status;
+}
+
+/** Priority of a worker's slots of the day for the one-button screens: the one to act on first. */
+const SLOT_RANK = { present: 6, late: 5, planned: 5, to_sign: 4, missed: 3, validated: 2, absent: 1 };
+export function rankSlot(a, now = new Date()) {
+    const st = displayStatus(a, now);
+    // Among planned slots, prefer the one starting closest to now.
+    const closeness = st === 'planned' || st === 'late' ? -Math.abs(new Date(a.planned_start) - now) / 1e12 : 0;
+    return (SLOT_RANK[st] ?? 0) + closeness;
 }

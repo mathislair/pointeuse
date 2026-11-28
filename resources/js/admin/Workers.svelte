@@ -1,5 +1,6 @@
 <script>
     import { get, post, put, del } from '../lib/api.js';
+    import { matchesWorker } from '../lib/format.js';
     import Modal from '../components/Modal.svelte';
     import Page from './Page.svelte';
 
@@ -16,8 +17,7 @@
     load();
 
     const filtered = $derived.by(() => {
-        const q = search.trim().toLowerCase();
-        return workers.filter((w) => (showInactive || w.active) && (!q || `${w.first_name} ${w.last_name}`.toLowerCase().includes(q)));
+        return workers.filter((w) => (showInactive || w.active) && matchesWorker(w, search));
     });
 
     function openForm(w = null) {

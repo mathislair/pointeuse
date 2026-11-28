@@ -2,14 +2,15 @@
     /** Create or edit a planned shift / clocking. Used by Planning and Pointages. */
     import { get, post, put, del } from '../lib/api.js';
     import { appConfig } from '../lib/config.svelte.js';
-    import { fmtDuration, fmtTime, fmtDateLong } from '../lib/format.js';
+    import { fmtDuration, fmtTime, fmtDateLong, matchesWorker } from '../lib/format.js';
     import Modal from '../components/Modal.svelte';
     import StatusBadge from '../components/StatusBadge.svelte';
 
     let { assignment = null, defaults = {}, restaurants = [], workers = [], onclose, onsaved } = $props();
 
     const editing = $derived(!!assignment);
-    const hm = (iso) => (iso ? fmtTime(iso) : '');
+    /** "HH:MM" in Europe/Paris whatever the browser's timezone: the form talks wall-clock Paris time to the API. */
+    const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: appConfig.value?.timezone ?? 'Europe/Paris' }) : '');
 
     // svelte-ignore state_referenced_locally
     let form = $state({
@@ -34,8 +35,7 @@
     });
 
     const filteredWorkers = $derived.by(() => {
-        const q = search.trim().toLowerCase();
-        return workers.filter((w) => w.active || w.id === form.worker_id).filter((w) => !q || `${w.first_name} ${w.last_name}`.toLowerCase().includes(q));
+        return workers.filter((w) => w.active || w.id === form.worker_id).filter((w) => matchesWorker(w, search));
     });
 
     /** The shift is deduced from the range (server-side too); shown here as feedback. */
@@ -84,10 +84,11 @@
             };
             let saved;
             if (editing) {
+                // Arrival / departure are only sent when edited: an untouched clocking keeps its
+                // seconds and its signature (the server also compares to the minute).
                 saved = await put(`/assignments/${assignment.id}`, {
                     ...payload,
-                    clock_in_at: localStamp(clockIn),
-                    clock_out_at: localStamp(clockOut),
+                    ...(clockingChanged ? { clock_in_at: localStamp(clockIn), clock_out_at: localStamp(clockOut) } : {}),
                     absent: form.absent,
                 });
             } else {

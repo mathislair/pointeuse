@@ -11,6 +11,9 @@ export class ApiError extends Error {
     }
 }
 
+/** Requests that hang (bad mobile network) fail after this delay instead of never. */
+const TIMEOUT_MS = 15_000;
+
 export async function api(path, { method = 'GET', body, params } = {}) {
     const url = new URL('/api' + path, window.location.origin);
     if (params) {
@@ -18,14 +21,21 @@ export async function api(path, { method = 'GET', body, params } = {}) {
             if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
         }
     }
-    const res = await fetch(url, {
-        method,
-        headers: {
-            Accept: 'application/json',
-            ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-        body: body ? JSON.stringify(body) : undefined,
-    });
+    let res;
+    try {
+        res = await fetch(url, {
+            method,
+            headers: {
+                Accept: 'application/json',
+                ...(body ? { 'Content-Type': 'application/json' } : {}),
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+    } catch (e) {
+        const timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError';
+        throw new ApiError(timedOut ? 'Le serveur ne répond pas, réessaie.' : 'Réseau indisponible, vérifie la connexion.', 0);
+    }
     if (res.status === 204) return null;
     const data = await res.json().catch(() => null);
     if (!res.ok) {
