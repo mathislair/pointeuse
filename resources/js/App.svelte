@@ -2,9 +2,12 @@
     import { router } from './lib/router.svelte.js';
     import { appConfig } from './lib/config.svelte.js';
     import Pointeuse from './pointeuse/Pointeuse.svelte';
+    import Mobile from './mobile/Mobile.svelte';
     import Admin from './admin/Admin.svelte';
 
     const isAdmin = $derived(router.path === '/admin' || router.path.startsWith('/admin/'));
+    // /p/{slug}: the mobile time clock opened by scanning a restaurant's QR code.
+    const isMobile = $derived(/^\/p\/[^/]+/.test(router.path));
 </script>
 
 <svelte:document onclick={router.handleClick} />
@@ -14,6 +17,8 @@
 {:then}
     {#if isAdmin}
         <Admin />
+    {:else if isMobile}
+        <Mobile />
     {:else}
         <Pointeuse />
     {/if}

@@ -1,7 +1,9 @@
 <script>
     import { get, post, put, del } from '../lib/api.js';
+    import { appConfig } from '../lib/config.svelte.js';
     import Modal from '../components/Modal.svelte';
     import Page from './Page.svelte';
+    import QrModal from './QrModal.svelte';
 
     let restaurants = $state([]);
     let editing = $state(null);
@@ -10,6 +12,7 @@
     let error = $state('');
     let busy = $state(false);
     let copied = $state(null);
+    let qr = $state(null);
 
     const load = async () => (restaurants = await get('/restaurants'));
     load();
@@ -40,17 +43,18 @@
         await load();
     }
 
-    const link = (r) => `${window.location.origin}/?restaurant=${r.slug}`;
-    async function copy(r) {
+    const tabletLink = (r) => `${window.location.origin}/?restaurant=${r.slug}`;
+    const mobileLink = (r) => `${appConfig.publicOrigin.origin}/p/${r.slug}`;
+    async function copy(r, link) {
         try {
-            await navigator.clipboard.writeText(link(r));
-            copied = r.id;
+            await navigator.clipboard.writeText(link);
+            copied = link;
             setTimeout(() => (copied = null), 1500);
         } catch {}
     }
 </script>
 
-<Page title="Restaurants" subtitle="Chaque tablette de pointeuse est reliée à un restaurant : ouvrez son lien sur l'appareil pour la configurer.">
+<Page title="Restaurants" subtitle="Chaque restaurant a son QR code à afficher : les intérimaires le scannent avec leur téléphone pour pointer. Le lien tablette configure une pointeuse fixe.">
     {#snippet actions()}
         <button class="btn btn-primary" onclick={() => openForm()}>Ajouter un restaurant</button>
     {/snippet}
@@ -58,16 +62,26 @@
     <div class="card overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
             <thead class="bg-gray-50">
-                <tr><th class="th">Nom</th><th class="th">Lien de la pointeuse</th><th class="th"></th></tr>
+                <tr><th class="th">Nom</th><th class="th">Pointeuse mobile (QR code)</th><th class="th">Tablette</th><th class="th"></th></tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {#each restaurants as r (r.id)}
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3"><p class="flex items-center gap-2 font-medium text-gray-900"><span class="h-2.5 w-2.5 rounded-full" style="background: {r.color}"></span>{r.name}</p><p class="text-xs text-gray-500">{r.slug}</p></td>
                         <td class="px-4 py-3">
-                            <div class="flex items-center gap-2">
-                                <code class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{link(r)}</code>
-                                <button class="text-xs text-emerald-700 hover:underline" onclick={() => copy(r)}>{copied === r.id ? 'copié ✓' : 'copier'}</button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button class="btn btn-secondary px-2.5 py-1 text-xs" onclick={() => (qr = r)}>
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h3v3h-3zM20 14v2M17 20h3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                    QR code
+                                </button>
+                                <code class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{mobileLink(r)}</code>
+                                <button class="text-xs text-emerald-700 hover:underline" onclick={() => copy(r, mobileLink(r))}>{copied === mobileLink(r) ? 'copié ✓' : 'copier'}</button>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <code class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{tabletLink(r)}</code>
+                                <button class="text-xs text-emerald-700 hover:underline" onclick={() => copy(r, tabletLink(r))}>{copied === tabletLink(r) ? 'copié ✓' : 'copier'}</button>
                                 <a class="text-xs text-emerald-700 hover:underline" href="/?restaurant={r.slug}" target="_blank">ouvrir</a>
                             </div>
                         </td>
@@ -77,7 +91,7 @@
                         </td>
                     </tr>
                 {:else}
-                    <tr><td colspan="3" class="px-6 py-12 text-center"><p class="text-sm font-medium text-gray-900">Aucun restaurant</p><p class="mt-1 text-sm text-gray-500">Créez un restaurant pour commencer à planifier.</p></td></tr>
+                    <tr><td colspan="4" class="px-6 py-12 text-center"><p class="text-sm font-medium text-gray-900">Aucun restaurant</p><p class="mt-1 text-sm text-gray-500">Créez un restaurant pour commencer à planifier.</p></td></tr>
                 {/each}
             </tbody>
         </table>
@@ -102,6 +116,10 @@
             {#if error}<p class="text-sm text-red-600">{error}</p>{/if}
         </form>
     </Modal>
+{/if}
+
+{#if qr}
+    <QrModal restaurant={qr} onclose={() => (qr = null)} />
 {/if}
 
 {#if deleting}
